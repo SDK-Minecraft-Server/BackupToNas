@@ -1,9 +1,12 @@
 {
   "schema_version": 1,
   "id": "backup_to_nas",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "name": "Backup To Nas",
-  "description": "Package the save backup as a ZIP archive and transfer it to the remote NAS using the SFTP protocol.",
+  "description": {
+    "en_us": "Package the save backup as a ZIP archive and transfer it to the remote NAS using the SFTP protocol.",
+    "zh_cn": "将存档打包为 ZIP，并通过 SFTP 传输到远程 NAS。"
+  },
   "authors": [
     {"name": "renzaifei"}
   ],

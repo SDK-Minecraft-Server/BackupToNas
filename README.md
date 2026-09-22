@@ -1,39 +1,36 @@
 # Backup To Nas
 
-Backup To Nas 是一个基于MCDReforged的异地备份插件
+[简体中文](README_CN.md)
 
-使用SFTP协议将完整的zip格式备份传输到远端服务器(nas)
+Backup To Nas is an MCDReforged plugin for backing up Minecraft worlds to a remote NAS. It creates ZIP archives and transfers them over SFTP.
 
-## 功能
+## Features
 
-- 按配置备份一个或多个世界并自动上传。
-- 定时自动备份。
-- 手动上传临时目录中已有的 `.zip` 文件。
-- 权限等级和 SFTP 连接参数均可配置。
+- Back up one or more configured worlds and upload the archive.
+- Run backups on a schedule.
+- Manually upload existing `.zip` files from the temporary directory.
+- Query upload progress.
+- Configure MCDR permission levels and SFTP connection settings.
 
-## 安装
+## Installation
 
-插件要求 MCDR 2.10.0 或更高版本，并依赖 Paramiko：
+The plugin requires MCDR 2.10.0 or newer and Paramiko:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-如果 MCDR 通过 pipx 安装，请将 Paramiko 安装到运行 MCDR 的环境中：
+If MCDR was installed with pipx, inject Paramiko into that environment:
 
 ```bash
 pipx inject mcdreforged paramiko
 ```
 
-插件首次加载时会生成：
+The first load creates `config/backup_to_nas/config.json`.
 
-```text
-config/backup_to_nas/config.json
-```
+Plugin messages are registered from `backup_to_nas/lang/en_us.json` and `backup_to_nas/lang/zh_cn.json`, and follow each command source's MCDR language preference. Set it with MCDR's preference command, for example `!!MCDR preference language set zh_cn` or `!!MCDR preference language set en_us`.
 
-## 配置
-
-下面是完整配置示例：
+## Configuration
 
 ```json
 {
@@ -48,9 +45,7 @@ config/backup_to_nas/config.json
     "temp": "./backup_to_nas",
     "turn_off_auto_save": true,
     "server_path": "./server",
-    "world_names": [
-        "world"
-    ],
+    "world_names": ["world"],
     "ignore_session_lock": true,
     "sftp": {
         "host": "192.168.1.100",
@@ -65,44 +60,49 @@ config/backup_to_nas/config.json
 }
 ```
 
-`server_path`、`temp` 和 `world_names` 用来确定本地存档位置。
+`server_path`, `temp`, and `world_names` select the local world locations. Relative paths use MCDR's working directory; absolute paths are recommended for production.
 
-相对路径相对于 MCDR 的工作目录，建议在生产环境使用绝对路径。
+Choose exactly one SFTP authentication method:
 
-`world_names` 中可以填写多个世界目录。
+- `password_file` points to a file containing the password. Trailing newlines are ignored.
+- `private_key_file` points to an SSH private key.
 
-SFTP 认证方式二选一：
+The two fields cannot both be configured. Credentials are read from files instead of being stored in JSON. `auto_add_host_key` defaults to `false`, so the NAS host key must be added to `known_hosts` manually. Set it to `true` only when you explicitly accept automatically trusting unknown hosts.
 
-- `password_file` 指向只包含密码的文件，文件末尾的换行会被忽略。
-- `private_key_file` 指向 SSH 私钥文件。
+An empty `interval` disables automatic backups. Use values such as `1s`, `30s`, `1h`, or `1d`; reload the plugin after editing the configuration.
 
-两项不能同时配置,文件认证的方式是出于安全性考虑。
+## Commands
 
-`auto_add_host_key` 默认为 `false`，此时需要手动添加know_hosts；
+The default command prefix is `!!btn`:
 
-嫌手动添加麻烦且明确接受该风险时才设置为 `true`。
-
-`interval` 为空表示关闭自动备份，也可以使用 `1s`、`30s`、`1h` 或 `1d` 等格式。修改配置后重载插件即可生效。
-
-## 命令
-
-默认命令前缀是 `!!btn`：
-
-| 命令 | 作用 |
+| Command | Description |
 | --- | --- |
-| `!!btn` | 显示帮助信息 |
-| `!!btn make` | 立即创建并上传一次备份 |
-| `!!btn interval <interval>` | 设置自动备份间隔，例如 `!!btn interval 6h` |
-| `!!btn interval off` | 禁用自动备份 |
-| `!!btn status` | 查询当前或最近一次 SFTP 上传状态 |
-| `!!btn upload` | 上传临时目录顶层已有的 `.zip` 文件 |
+| `!!btn` | Show help |
+| `!!btn make` | Create and upload a backup immediately |
+| `!!btn interval <interval>` | Set the automatic backup interval, for example `!!btn interval 6h` |
+| `!!btn interval off` | Disable automatic backups |
+| `!!btn status` | Show current or last SFTP upload status |
+| `!!btn upload` | Upload `.zip` files from the top level of the temporary directory |
 
-备份和手动上传不能同时执行。上传失败的 ZIP 文件会保留在临时目录中，可以稍后使用 `!!btn upload` 重试。
+Backups and manual uploads cannot run at the same time. Failed ZIP files remain in the temporary directory and can be retried with `!!btn upload`.
 
-## 许可证
+## Permissions
 
-本项目使用 LGPL-3.0，详见 [LICENSE](LICENSE)。
+Each value is the minimum MCDR permission level required by that command:
 
-## 附言
+| Level | Role |
+| ---: | --- |
+| 0 | Everyone |
+| 1 | User |
+| 2 | Helper |
+| 3 | Admin |
+| 4 | Owner |
 
-本项目备份部分参考了项目[PermanentBackup](https://github.com/TISUnion/PermanentBackup)。
+The fields `permissions.help`, `permissions.make`, `permissions.interval`, `permissions.status`, and `permissions.upload` control each command. The root `help` permission also gates subcommands.
+
+
+## License
+
+This project is licensed under LGPL-3.0. See [LICENSE](LICENSE).
+
+The backup portion is inspired by [PermanentBackup](https://github.com/TISUnion/PermanentBackup).
