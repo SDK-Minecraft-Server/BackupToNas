@@ -1,0 +1,49 @@
+name: Build release plugin
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          persist-credentials: false
+
+      - name: Package MCDR plugin
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          plugin_name=$(jq -er '.name | select(type == "string" and length > 0)' mcdreforged.plugin.json)
+          plugin_name=$(printf '%s' "$plugin_name" | tr -d '[:space:]')
+          if [[ -z "$plugin_name" || "$plugin_name" == */* || "$plugin_name" == *\\* ]]; then
+            echo 'Invalid plugin name in mcdreforged.plugin.json' >&2
+            exit 1
+          fi
+
+          test -f mcdreforged.plugin.json
+          test -f LICENSE
+          test -f requirements.txt
+          test -f backup_to_nas/__init__.py
+
+          mkdir -p dist
+          archive="dist/${plugin_name}.mcdr"
+          zip -r "$archive" mcdreforged.plugin.json LICENSE requirements.txt backup_to_nas \
+            -x '*/__pycache__/*' '*.pyc'
+          unzip -t "$archive"
+          echo "archive=$archive" >> "$GITHUB_OUTPUT"
+
+      - name: Upload release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          ARCHIVE: ${{ steps.package.outputs.archive }}
+        run: gh release upload "$RELEASE_TAG" "$ARCHIVE" --clobber

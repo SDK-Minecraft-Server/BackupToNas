@@ -102,3 +102,7 @@ SFTP 认证方式二选一：
 ## 许可证
 
 本项目使用 LGPL-3.0，详见 [LICENSE](LICENSE)。
+
+## 附言
+
+本项目备份部分参考了项目[PermanentBackup](https://github.com/TISUnion/PermanentBackup)。
