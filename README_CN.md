@@ -32,8 +32,6 @@ pipx inject mcdreforged paramiko
 config/backup_to_nas/config.json
 ```
 
-插件消息来自 `backup_to_nas/lang/en_us.json` 和 `backup_to_nas/lang/zh_cn.json`，会根据命令来源的 MCDR 语言偏好显示为简体中文或英语。可以使用 MCDR 的偏好设置命令切换，例如 `!!MCDR preference language set zh_cn` 或 `!!MCDR preference language set en_us`。
-
 ## 配置
 
 ```json

@@ -28,8 +28,6 @@ pipx inject mcdreforged paramiko
 
 The first load creates `config/backup_to_nas/config.json`.
 
-Plugin messages are registered from `backup_to_nas/lang/en_us.json` and `backup_to_nas/lang/zh_cn.json`, and follow each command source's MCDR language preference. Set it with MCDR's preference command, for example `!!MCDR preference language set zh_cn` or `!!MCDR preference language set en_us`.
-
 ## Configuration
 
 ```json
