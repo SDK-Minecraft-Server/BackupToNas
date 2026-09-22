@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "id": "backup_to_nas",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "name": "Backup To Nas",
   "description": "Package the save backup as a ZIP archive and transfer it to the remote NAS using the SFTP protocol.",
   "authors": [
@@ -9,7 +9,7 @@
   ],
   "license": "LGPL-3.0",
   "links": {
-    "source": ""
+    "source": "https://github.com/SDK-Minecraft-Server/BackupToNas"
   },
   "dependencies": {
     "mcdreforged": ">=2.10.0"
