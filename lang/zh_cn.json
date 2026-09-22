@@ -1,6 +1,6 @@
 {
   "backup_to_nas": {
-    "help": "§7------§rMCDR Backup To Nas§7------§r\n将存档打包为 ZIP 并通过 SFTP 上传到 NAS。\n§a【格式说明】§r\n§7{prefix}§r 显示帮助信息\n§7{prefix} make§r 创建并上传备份\n§7{prefix} interval <interval>§r 设置自动备份间隔，例：1s|1h|1d\n§7{prefix} interval off§r 禁用自动备份\n§7{prefix} status§r 查询当前 SFTP 上传进度\n§7{prefix} upload§r 上传临时目录中的压缩包",
+    "help": "§7------§rMCDR Backup To Nas v{version}§7------§r\n将存档打包为 ZIP 并通过 SFTP 上传到 NAS。\n§a【格式说明】§r\n§7{prefix}§r 显示帮助信息\n§7{prefix} make§r 创建并上传备份\n§7{prefix} interval <interval>§r 设置自动备份间隔，例：1s|1h|1d\n§7{prefix} interval off§r 禁用自动备份\n§7{prefix} status§r 查询当前 SFTP 上传进度\n§7{prefix} upload§r 上传临时目录中的压缩包",
     "interval_invalid": "自动备份间隔必须是正数加 s、h 或 d，例如 30s。",
     "permission_invalid": "permissions.{name} 必须是 0 到 4 之间的整数",
     "denied_help": "§c你没有使用此命令的权限§r",

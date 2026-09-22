@@ -1,6 +1,6 @@
 {
   "backup_to_nas": {
-    "help": "§7------§rMCDR Backup To Nas§7------§r\nBack up worlds as ZIP archives and upload them to a NAS via SFTP.\n§aCommands§r\n§7{prefix}§r Show help\n§7{prefix} make§r Create and upload a backup\n§7{prefix} interval <interval>§r Set the backup interval, e.g. 1s|1h|1d\n§7{prefix} interval off§r Disable automatic backups\n§7{prefix} status§r Show SFTP upload progress\n§7{prefix} upload§r Upload archives from the temporary directory",
+    "help": "§7------§rMCDR Backup To Nas v{version}§7------§r\nBack up worlds as ZIP archives and upload them to a NAS via SFTP.\n§aCommands§r\n§7{prefix}§r Show help\n§7{prefix} make§r Create and upload a backup\n§7{prefix} interval <interval>§r Set the backup interval, e.g. 1s|1h|1d\n§7{prefix} interval off§r Disable automatic backups\n§7{prefix} status§r Show SFTP upload progress\n§7{prefix} upload§r Upload archives from the temporary directory",
     "interval_invalid": "The backup interval must be a positive number followed by s, h or d, e.g. 30s.",
     "permission_invalid": "permissions.{name} must be an integer from 0 to 4",
     "denied_help": "§cYou do not have permission to use this command.§r",

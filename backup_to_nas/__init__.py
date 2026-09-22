@@ -30,7 +30,8 @@ def tr(key, source=None, **values):
     if server is None:
         return f'{TRANSLATION_PREFIX}{key}'
     values = {
-        name: value.translate(source) if isinstance(value, LocalizedError) else value
+        name: value.rtext(source) if isinstance(value, LocalizedError) and source is not None
+        else value.translate(source) if isinstance(value, LocalizedError) else value
         for name, value in values.items()
     }
     if source is not None:
@@ -51,6 +52,9 @@ class LocalizedError(ValueError):
         if server is None:
             return f'{TRANSLATION_PREFIX}{self.key}'
         return server.tr(f'{TRANSLATION_PREFIX}{self.key}', **self.values)
+
+    def rtext(self, source):
+        return source.get_server().rtr(f'{TRANSLATION_PREFIX}{self.key}', **self.values)
 
     def __str__(self):
         return str(self.translate())
@@ -91,6 +95,14 @@ config = Config()
 
 
 Prefix = '!!btn'
+
+
+def plugin_version():
+    if plugin_server is None:
+        return 'unknown'
+    return str(plugin_server.get_self_metadata().version)
+
+
 creating_backup = Lock()
 upload_status_lock = Lock()
 upload_status = {
@@ -197,7 +209,7 @@ def on_load(server: PluginServerInterface, prev_module):
     start_auto_backup(server)
 
 def help(callback: CommandSource):
-    callback.reply(tr('help', callback, prefix=Prefix))
+    callback.reply(tr('help', callback, prefix=Prefix, version=plugin_version()))
 
 
 def info_message(source: CommandSource, msg: str, broadcast=False):
