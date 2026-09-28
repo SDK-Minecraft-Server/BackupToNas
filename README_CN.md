@@ -57,6 +57,7 @@ config/backup_to_nas/config.json
         "private_key_file": "",
         "remote_dir": "/minecraft-backups",
         "timeout": 30,
+        "retry_count": 0,
         "auto_add_host_key": false
     }
 }
@@ -70,6 +71,10 @@ SFTP 认证方式二选一：
 - `private_key_file` 指向 SSH 私钥文件。
 
 两项不能同时配置。凭据从文件读取，不会直接保存在 JSON 配置中。`auto_add_host_key` 默认是 `false`，需要先将 NAS 主机密钥加入运行 MCDR 用户的 `known_hosts`。只有在明确接受自动信任未知主机的风险时才设置为 `true`。
+
+`retry_count` 控制 SFTP 上传失败后的自动重试次数。`0` 表示不重试，正数表示额外重试的次数，负数表示一直重试，直到上传成功或插件卸载。每次重试间隔 5 秒。
+
+重新连接后会根据远端同名文件的大小从断点继续上传。上传中断时本地 ZIP 会保留，插件启动时会自动重试临时目录顶层的 ZIP，也可以使用 `!!btn upload` 手动继续上传。
 
 `interval` 为空表示关闭自动备份，也可以使用 `1s`、`30s`、`1h` 或 `1d` 等格式。修改配置后重载插件即可生效。
 

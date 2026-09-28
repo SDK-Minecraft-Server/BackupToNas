@@ -53,6 +53,7 @@ The first load creates `config/backup_to_nas/config.json`.
         "private_key_file": "",
         "remote_dir": "/minecraft-backups",
         "timeout": 30,
+        "retry_count": 0,
         "auto_add_host_key": false
     }
 }
@@ -66,6 +67,10 @@ Choose exactly one SFTP authentication method:
 - `private_key_file` points to an SSH private key.
 
 The two fields cannot both be configured. Credentials are read from files instead of being stored in JSON. `auto_add_host_key` defaults to `false`, so the NAS host key must be added to `known_hosts` manually. Set it to `true` only when you explicitly accept automatically trusting unknown hosts.
+
+`retry_count` controls automatic retries after an SFTP upload fails. `0` disables retries, a positive value sets the number of additional attempts, and a negative value retries indefinitely until the upload succeeds or the plugin is unloaded. Retries are five seconds apart.
+
+Uploads resume from the existing remote file size after a reconnect. Local ZIP files are kept when an upload is interrupted; the plugin automatically retries top-level ZIP files when it starts, and they can also be retried with `!!btn upload`.
 
 An empty `interval` disables automatic backups. Use values such as `1s`, `30s`, `1h`, or `1d`; reload the plugin after editing the configuration.
 

@@ -75,6 +75,7 @@ class SftpConfig(Serializable):
     private_key_file: str = ''
     remote_dir: str = '/backups'
     timeout: int = 30
+    retry_count: int = 0
     auto_add_host_key: bool = False
 
 
@@ -112,11 +113,13 @@ upload_status = {
     'total': 0,
     'error': '',
 }
-game_saved = False
+game_saved = Event()
 plugin_unloaded = False
 plugin_server = None
 auto_backup_stop = None
 auto_backup_thread = None
+SAVE_TIMEOUT = 120
+RETRY_DELAY = 5
 
 
 def parse_interval(value: str) -> float:
@@ -141,6 +144,17 @@ def stop_auto_backup():
     auto_backup_thread = None
 
 
+def wait_for_active_task(timeout: float = 30) -> bool:
+    deadline = time.monotonic() + timeout
+    while True:
+        if creating_backup.acquire(blocking=False):
+            creating_backup.release()
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.1)
+
+
 def start_auto_backup(server: PluginServerInterface):
     global auto_backup_stop, auto_backup_thread
     stop_auto_backup()
@@ -154,10 +168,36 @@ def start_auto_backup(server: PluginServerInterface):
         while not stop_event.wait(seconds):
             if plugin_unloaded:
                 return
-            make_backup(server.get_plugin_command_source())
+            backup_thread = make_backup(server.get_plugin_command_source())
+            while backup_thread.is_alive():
+                if stop_event.wait(0.2):
+                    return
 
     auto_backup_thread = Thread(target=loop, name='Backup-To-Nas-Scheduler', daemon=True)
     auto_backup_thread.start()
+
+
+def start_pending_upload_recovery(server: PluginServerInterface, previous_module=None):
+    try:
+        temp_dir = Path(config.temp)
+        has_pending = temp_dir.is_dir() and any(
+            path.is_file() and not path.is_symlink() and path.suffix.lower() == '.zip'
+            for path in temp_dir.iterdir()
+        )
+    except OSError:
+        return
+    if not has_pending or plugin_unloaded:
+        return
+
+    def recover():
+        if previous_module is not None:
+            wait = getattr(previous_module, 'wait_for_active_task', None)
+            if wait is not None:
+                wait()
+        if not plugin_unloaded:
+            upload_temp(server.get_plugin_command_source())
+
+    Thread(target=recover, name='Backup-To-Nas-Recovery', daemon=True).start()
 
 def on_load(server: PluginServerInterface, prev_module):
     global config, plugin_server, plugin_unloaded
@@ -172,6 +212,8 @@ def on_load(server: PluginServerInterface, prev_module):
         level = getattr(config.permissions, name)
         if type(level) is not int or not 0 <= level <= 4:
             raise LocalizedError('permission_invalid', name=name)
+    if type(config.sftp.retry_count) is not int:
+        raise LocalizedError('retry_count_invalid')
 
     # 命令注册
     builder = SimpleCommandBuilder()
@@ -206,6 +248,7 @@ def on_load(server: PluginServerInterface, prev_module):
     builder.arg('interval', Text)
 
     builder.register(server)
+    start_pending_upload_recovery(server, prev_module)
     start_auto_backup(server)
 
 def help(callback: CommandSource):
@@ -213,8 +256,6 @@ def help(callback: CommandSource):
 
 
 def info_message(source: CommandSource, msg: str, broadcast=False):
-    # rtr() returns a lazy RText component; keep it intact so MCDR can choose
-    # the recipient's language when the message is displayed.
     if not isinstance(msg, str):
         if broadcast and source.is_player:
             source.get_server().broadcast(msg)
@@ -270,6 +311,40 @@ def ensure_remote_dir(sftp, remote_dir: str):
             sftp.mkdir(current)
 
 
+def upload_file_resumable(sftp, local_path: str, remote_path: str, total: int):
+    offset = 0
+    try:
+        remote_size = sftp.stat(remote_path).st_size
+    except IOError:
+        remote_size = 0
+    else:
+        if remote_size == total:
+            _set_upload_status(phase='uploading', transferred=total, total=total)
+            return
+        if remote_size > total:
+            sftp.remove(remote_path)
+        else:
+            offset = remote_size
+
+    mode = 'r+' if offset else 'wb'
+    with open(local_path, 'rb') as local_file, sftp.open(remote_path, mode) as remote_file:
+        if offset:
+            local_file.seek(offset)
+            remote_file.seek(offset)
+        transferred = offset
+        _set_upload_status(phase='uploading', transferred=transferred, total=total)
+        while True:
+            if plugin_unloaded:
+                raise LocalizedError('upload_unloaded')
+            chunk = local_file.read(1024 * 1024)
+            if not chunk:
+                break
+            remote_file.write(chunk)
+            transferred += len(chunk)
+            _set_upload_status(transferred=transferred, total=total)
+        remote_file.flush()
+
+
 def upload_sftp(local_path: str):
     sftp_config = config.sftp
     if not sftp_config.host:
@@ -283,7 +358,6 @@ def upload_sftp(local_path: str):
     password = ''
     if password_file:
         try:
-            # 只去除密码文件结尾的换行，保留密码本身可能包含的空格。
             password = Path(password_file).read_text(encoding='utf-8').rstrip('\r\n')
         except OSError as error:
             raise LocalizedError('password_unreadable', path=password_file) from error
@@ -319,12 +393,9 @@ def upload_sftp(local_path: str):
         with client.open_sftp() as sftp:
             ensure_remote_dir(sftp, sftp_config.remote_dir)
             remote_path = sftp_config.remote_dir.rstrip('/') + '/' + os.path.basename(local_path)
-            _set_upload_status(phase='uploading')
-
-            def on_progress(transferred, total):
-                _set_upload_status(transferred=transferred, total=total)
-
-            sftp.put(local_path, remote_path, callback=on_progress)
+            upload_file_resumable(sftp, local_path, remote_path, os.path.getsize(local_path))
+            if plugin_unloaded:
+                raise LocalizedError('upload_unloaded')
         _set_upload_status(
             phase='completed', transferred=os.path.getsize(local_path),
             total=os.path.getsize(local_path), error='',
@@ -334,6 +405,45 @@ def upload_sftp(local_path: str):
         raise
     finally:
         client.close()
+
+
+def _wait_for_retry() -> bool:
+    deadline = time.monotonic() + RETRY_DELAY
+    while time.monotonic() < deadline:
+        if plugin_unloaded:
+            return False
+        time.sleep(min(0.2, deadline - time.monotonic()))
+    return not plugin_unloaded
+
+
+def upload_sftp_with_retry(local_path: str):
+    retries = config.sftp.retry_count
+    attempt = 0
+    while True:
+        try:
+            upload_sftp(local_path)
+            return
+        except Exception as error:
+            attempt += 1
+            if (
+                plugin_unloaded
+                or isinstance(error, LocalizedError)
+                or (retries >= 0 and attempt > retries)
+            ):
+                raise
+            logger = plugin_server.logger if plugin_server is not None else None
+            if logger is not None:
+                logger.warning(
+                    tr(
+                        'upload_retry_log',
+                        file=os.path.basename(local_path),
+                        attempt=attempt,
+                        delay=RETRY_DELAY,
+                        error=error,
+                    )
+                )
+            if not _wait_for_retry():
+                raise
 
 
 def sftp_status(source: CommandSource):
@@ -382,7 +492,7 @@ def upload_temp(source: CommandSource):
                 return
             info_message(source, tr('upload_start', source, file=archive.name))
             try:
-                upload_sftp(str(archive))
+                upload_sftp_with_retry(str(archive))
             except Exception as error:
                 failed += 1
                 _set_upload_status(
@@ -392,6 +502,15 @@ def upload_temp(source: CommandSource):
                 source.get_server().logger.exception(tr('upload_failed_log', file=archive.name))
                 info_message(source, tr('upload_failed', source, file=archive.name, error=error))
             else:
+                if plugin_unloaded:
+                    info_message(source, tr('upload_unloaded', source))
+                    return
+                try:
+                    archive.unlink()
+                except OSError as error:
+                    source.get_server().logger.warning(
+                        'Uploaded archive could not be removed: %s: %s', archive, error
+                    )
                 succeeded += 1
                 info_message(source, tr('upload_completed', source, file=archive.name))
         info_message(source, tr('upload_summary', source, succeeded=succeeded, failed=failed))
@@ -417,16 +536,15 @@ def make_backup(source: CommandSource):
         if config.turn_off_auto_save:
             source.get_server().execute('save-off')
             auto_save_on = False
-        global game_saved
-        game_saved = False
+        game_saved.clear()
         source.get_server().execute('save-all flush')
-        while True:
-            time.sleep(0.01)
-            if game_saved:
-                break
+        deadline = time.monotonic() + SAVE_TIMEOUT
+        while not game_saved.wait(0.2):
             if plugin_unloaded:
                 info_message(source, tr('backup_unloaded', source), broadcast=True)
                 return
+            if time.monotonic() >= deadline:
+                raise LocalizedError('save_timeout', seconds=SAVE_TIMEOUT)
 
         # copy worlds
         def filter_ignore(path, files):
@@ -449,13 +567,15 @@ def make_backup(source: CommandSource):
             counter += 1
             zip_file_name = '{}_{}'.format(file_name_raw, counter)
         zip_file_name += '.zip'
+        zip_part_name = zip_file_name + '.part'
 
         # zipping worlds
         info_message(source, tr('compress_start', source, file=os.path.basename(zip_file_name)), broadcast=True)
-        zipf = zipfile.ZipFile(zip_file_name, 'w', zipfile.ZIP_DEFLATED)
+        zipf = zipfile.ZipFile(zip_part_name, 'w', zipfile.ZIP_DEFLATED)
         for world in config.world_names:
             add_file(zipf, os.path.join(config.temp, world), world)
         zipf.close()
+        os.replace(zip_part_name, zip_file_name)
 
         # cleaning worlds
         for world in config.world_names:
@@ -463,7 +583,16 @@ def make_backup(source: CommandSource):
 
         info_message(source, tr('compress_completed', source, seconds=round(time.time() - start_time, 1)), broadcast=True)
         info_message(source, tr('sftp_start', source), broadcast=True)
-        upload_sftp(zip_file_name)
+        upload_sftp_with_retry(zip_file_name)
+        if plugin_unloaded:
+            info_message(source, tr('backup_unloaded', source), broadcast=True)
+            return
+        try:
+            os.remove(zip_file_name)
+        except OSError as error:
+            source.get_server().logger.warning(
+                'Uploaded archive could not be removed: %s: %s', zip_file_name, error
+            )
         info_message(source, tr('sftp_completed', source, directory=config.sftp.remote_dir), broadcast=True)
     except Exception as e:
         info_message(source, tr('backup_failed', source, error=e), broadcast=True)
@@ -500,6 +629,5 @@ def on_unload(server: PluginServerInterface):
 
 def on_info(server, info):
     if not info.is_user:
-        if info.content == 'Saved the game':
-            global game_saved
-            game_saved = True
+        if info.content and info.content.strip().lower().endswith('saved the game'):
+            game_saved.set()

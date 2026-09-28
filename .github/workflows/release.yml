@@ -18,32 +18,9 @@ jobs:
 
       - name: Package MCDR plugin
         id: package
-        shell: bash
         run: |
           set -euo pipefail
-          plugin_name=$(jq -er '.name | select(type == "string" and length > 0)' mcdreforged.plugin.json)
-          plugin_name=$(printf '%s' "$plugin_name" | tr -d '[:space:]')
-          plugin_version=$(jq -er '.version | select(type == "string" and length > 0)' mcdreforged.plugin.json)
-          if [[ -z "$plugin_name" || "$plugin_name" == */* || "$plugin_name" == *\\* || \
-                -z "$plugin_version" || "$plugin_version" == */* || "$plugin_version" == *\\* ]]; then
-            echo 'Invalid plugin name or version in mcdreforged.plugin.json' >&2
-            exit 1
-          fi
-
-          test -f mcdreforged.plugin.json
-          test -f LICENSE
-          test -f requirements.txt
-          test -f backup_to_nas/__init__.py
-          test -f lang/en_us.json
-          test -f lang/zh_cn.json
-
-          mkdir -p dist
-          archive="dist/${plugin_name}-${plugin_version}.mcdr"
-          zip -r "$archive" mcdreforged.plugin.json LICENSE requirements.txt backup_to_nas lang \
-            -x '*/__pycache__/*' '*.pyc'
-          unzip -t "$archive"
-          unzip -l "$archive" | grep -F 'lang/en_us.json'
-          unzip -l "$archive" | grep -F 'lang/zh_cn.json'
+          archive=$(python3 package_plugin.py)
           echo "archive=$archive" >> "$GITHUB_OUTPUT"
 
       - name: Upload release asset
